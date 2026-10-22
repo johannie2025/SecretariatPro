@@ -1,14 +1,10 @@
-"""OCR local : extraction de texte depuis images et PDF, sans connexion Internet."""
-import queue
-import threading
-from datetime import datetime
+"""Numérisation (OCR) : texte + mise en page (tableaux, images) → Word / PDF / texte."""
 from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
 
-from modules import ocr_engine
-from modules.paths import client_dir
+from modules import ocr_layout
 from . import common as c
 
 
@@ -16,36 +12,37 @@ class OcrView(ctk.CTkFrame):
     def __init__(self, parent, app):
         super().__init__(parent, fg_color="transparent")
         self.app, self.db = app, app.db
-        self.path, self.q, self.clients = "", queue.Queue(), {}
+        self.path, self.result = "", None
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
-        c.title(self, "Lecture de documents (OCR)").grid(row=0, column=0, sticky="w")
+        self.grid_rowconfigure(3, weight=1)
+        c.title(self, "Numérisation (OCR)").grid(row=0, column=0, sticky="w")
         top = c.card(self)
-        top.grid(row=1, column=0, sticky="ew", pady=12)
+        top.grid(row=1, column=0, sticky="ew", pady=(10, 6))
         top.grid_columnconfigure(1, weight=1)
         c.primary_btn(top, "Choisir un fichier", self.pick, width=180).grid(row=0, column=0, padx=14, pady=14)
-        self.file_lbl = c.subtitle(top, "Image (PNG, JPG) ou PDF, scanné ou non")
+        self.file_lbl = c.subtitle(top, "Photo, scan ou PDF — texte, tableaux et images sont conservés")
         self.file_lbl.grid(row=0, column=1, sticky="w")
-        self.run_btn = c.primary_btn(top, "Extraire le texte", self.run, width=170)
+        self.run_btn = c.primary_btn(top, "Analyser le document", self.run, width=200)
         self.run_btn.grid(row=0, column=2, padx=14)
         self.progress = ctk.CTkProgressBar(top, mode="indeterminate", progress_color=c.ACCENT)
+        self.summary = c.label(self, "", color=c.ACCENT, bold=True, size=13)
+        self.summary.grid(row=2, column=0, sticky="w", pady=(0, 4))
         self.text = ctk.CTkTextbox(self, font=(c.FONT, 13), border_width=1, border_color=c.BORDER, corner_radius=12)
-        self.text.grid(row=2, column=0, sticky="nsew")
+        self.text.grid(row=3, column=0, sticky="nsew")
         bar = ctk.CTkFrame(self, fg_color="transparent")
-        bar.grid(row=3, column=0, sticky="ew", pady=12)
-        c.ghost_btn(bar, "Copier le texte", self.copy, width=150).pack(side="left")
-        c.ghost_btn(bar, "Enregistrer (.txt)", self.save_as, width=160).pack(side="left", padx=8)
-        self.client_cb = ctk.CTkComboBox(bar, values=[""], width=220, height=38)
-        self.client_cb.pack(side="right")
-        c.ghost_btn(bar, "Archiver chez :", self.archive, width=130).pack(side="right", padx=8)
-        self.refresh()
+        bar.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        self.out = c.OutputPicker(bar, self.db)
+        self.out.pack(side="left")
+        btns = ctk.CTkFrame(self, fg_color="transparent")
+        btns.grid(row=5, column=0, sticky="ew", pady=8)
+        c.primary_btn(btns, "Word (.docx)", self.export_docx, width=140).pack(side="left")
+        c.primary_btn(btns, "PDF recherchable", self.export_pdf, width=160).pack(side="left", padx=6)
+        c.ghost_btn(btns, "Texte (.txt)", self.export_txt, width=120).pack(side="left")
+        c.ghost_btn(btns, "Copier", self.copy, width=90).pack(side="left", padx=6)
+        c.ghost_btn(btns, "Envoyer vers Rédaction", self.to_writer, width=190).pack(side="right")
 
     def refresh(self):
-        self.clients = {cl["name"]: cl for cl in self.db.list_clients()}
-        names = list(self.clients) or [""]
-        self.client_cb.configure(values=names)
-        if self.client_cb.get() not in self.clients:
-            self.client_cb.set(names[0])
+        self.out.refresh()
 
     def pick(self):
         f = filedialog.askopenfilename(filetypes=[("Images et PDF", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp *.pdf")])
@@ -59,46 +56,62 @@ class OcrView(ctk.CTkFrame):
         self.run_btn.configure(state="disabled", text="Analyse en cours...")
         self.progress.grid(row=1, column=0, columnspan=3, sticky="ew", padx=14, pady=(0, 12))
         self.progress.start()
+        c.run_bg(self, lambda: ocr_layout.analyze(self.path), self.finished)
 
-        def work():
-            try:
-                self.q.put(("ok", ocr_engine.extract_text(self.path)))
-            except ValueError as e:
-                self.q.put(("err", str(e)))
-            except Exception:
-                self.q.put(("err", "La lecture a échoué. Le fichier est peut-être endommagé."))
-
-        threading.Thread(target=work, daemon=True).start()
-        self.after(200, self.poll)
-
-    def poll(self):
-        try:
-            kind, payload = self.q.get_nowait()
-        except queue.Empty:
-            return self.after(200, self.poll)
+    def finished(self, ok, val):
         self.progress.stop()
         self.progress.grid_forget()
-        self.run_btn.configure(state="normal", text="Extraire le texte")
-        if kind == "err":
-            return c.error(payload)
+        self.run_btn.configure(state="normal", text="Analyser le document")
+        if not ok:
+            return c.user_error(val, "La lecture a échoué. Le fichier est peut-être endommagé.")
+        self.result = val
         self.text.delete("1.0", "end")
-        self.text.insert("1.0", payload or "(Aucun texte détecté)")
+        self.text.insert("1.0", val.text or "(Aucun texte détecté)")
+        info = "  •  ".join([c.tr("{n} page(s)", n=val.n_pages), c.tr("{n} tableau(x)", n=val.n_tables),
+                              c.tr("{n} image(s)/dessin(s)", n=val.n_figures)])
+        if val.kind == "pdf_text":
+            info += "  •  " + c.tr("PDF numérique : mise en page d'origine reprise")
+        self.summary.configure(text=info)
 
-    def _content(self):
-        return self.text.get("1.0", "end").strip()
+    def _ready(self):
+        if not self.result:
+            c.error("Analysez d'abord un document.")
+            return False
+        return True
+
+    def _export(self, suffix, ext, fn):
+        if not self._ready():
+            return
+        out = self.out.target(f"{Path(self.path).stem}{suffix}{ext}", "Documents_OCR")
+        if not out:
+            return
+
+        def done(ok, val):
+            if not ok:
+                return c.user_error(val)
+            if c.confirm("Fichier enregistré.\nL'ouvrir maintenant ?", "Terminé"):
+                c.open_path(out)
+
+        c.run_bg(self, lambda: fn(self.result, out), done)
+
+    def export_docx(self):
+        self._export("", ".docx", ocr_layout.export_docx)
+
+    def export_pdf(self):
+        self._export("_recherchable", ".pdf", ocr_layout.export_pdf)
+
+    def export_txt(self):
+        if not self._ready():
+            return
+        out = self.out.target(f"{Path(self.path).stem}.txt", "Documents_OCR")
+        if out:
+            out.write_text(self.text.get("1.0", "end").strip(), encoding="utf-8")
+            c.info("Texte enregistré.")
 
     def copy(self):
-        c.copy_to_clipboard(self, self._content())
+        c.copy_to_clipboard(self, self.text.get("1.0", "end").strip())
 
-    def save_as(self):
-        f = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Texte", "*.txt")])
-        if f:
-            Path(f).write_text(self._content(), encoding="utf-8")
-
-    def archive(self):
-        cl = self.clients.get(self.client_cb.get())
-        if not cl or not self._content():
-            return c.error("Extrayez du texte et choisissez un entrepreneur.")
-        dest = client_dir(cl["name"], "Documents_OCR") / f"{datetime.now():%Y-%m-%d_%H%M%S}_{Path(self.path).stem[:30]}.txt".replace(" ", "_")
-        dest.write_text(self._content(), encoding="utf-8")
-        c.info(f"Texte archivé dans le dossier de {cl['name']}.")
+    def to_writer(self):
+        if self._ready():
+            self.app.pages["writer"].load_text(self.text.get("1.0", "end").strip())
+            self.app.show("writer")

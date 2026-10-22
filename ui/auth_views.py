@@ -1,7 +1,7 @@
 """Écrans d'activation de licence, de connexion et de changement de mot de passe."""
 import customtkinter as ctk
 
-from modules import security
+from modules import i18n, security
 from . import common as c
 
 
@@ -17,9 +17,9 @@ def _center_card(parent, width=440):
 
 
 class LoginView(ctk.CTkFrame):
-    def __init__(self, parent, db, on_success):
+    def __init__(self, parent, db, on_success, on_lang=None):
         super().__init__(parent, fg_color=c.BG)
-        self.db, self.on_success = db, on_success
+        self.db, self.on_success, self.on_lang = db, on_success, on_lang
         inner = _center_card(self)
         c.title(inner, "Connexion", 22).pack(anchor="w", pady=(14, 0))
         c.subtitle(inner, "Accédez à votre espace de secrétariat.").pack(anchor="w", pady=(0, 14))
@@ -30,11 +30,21 @@ class LoginView(ctk.CTkFrame):
         self.msg = c.label(inner, "", color=c.DANGER, size=12, wraplength=320)
         self.msg.pack(anchor="w", pady=(6, 0))
         c.primary_btn(inner, "Se connecter", self.submit, width=320).pack(pady=(10, 0))
-        c.subtitle(inner, c.CONTACT_LINE).pack(pady=(18, 0))
+        c.subtitle(inner, c.CONTACT_LINE).pack(pady=(14, 6))
+        lseg = ctk.CTkSegmentedButton(inner, values=[i18n.LANG_NAMES[x] for x in i18n.LANGS], command=self.change_lang,
+                                      selected_color=c.ACCENT, selected_hover_color=c.ACCENT_HOVER)
+        lseg.set(i18n.LANG_NAMES[i18n.get_lang()])
+        lseg.pack()
         self.user.insert(0, "admin")
         self.pwd.focus_set()
         self.pwd.bind("<Return>", lambda e: self.submit())
         self.user.bind("<Return>", lambda e: self.submit())
+
+    def change_lang(self, name):
+        i18n.set_lang(next(k for k, v in i18n.LANG_NAMES.items() if v == name))
+        self.db.set_setting("lang", i18n.get_lang())
+        if self.on_lang:
+            self.on_lang()
 
     def submit(self):
         ok, msg, must_change = self.db.authenticate(self.user.get(), self.pwd.get())
@@ -97,6 +107,19 @@ class ActivationView(ctk.CTkFrame):
     def activate_key(self):
         ok, msg = security.activate_license(self.key.get("1.0", "end"))
         self._done(ok, msg, 0, "cle")
+
+
+class LockedView(ctk.CTkFrame):
+    """Pour un compte secrétariat quand la licence du poste est absente ou expirée."""
+
+    def __init__(self, parent, reason, on_logout):
+        super().__init__(parent, fg_color=c.BG)
+        inner = _center_card(self, 480)
+        c.title(inner, "Licence requise", 22).pack(anchor="w", pady=(14, 0))
+        c.label(inner, reason, color=c.DANGER, size=13, wraplength=400).pack(anchor="w", pady=(2, 10))
+        c.subtitle(inner, "Demandez à l'administrateur d'activer ce poste, puis reconnectez-vous.", wraplength=400).pack(anchor="w")
+        c.primary_btn(inner, "Se déconnecter", on_logout, width=400).pack(pady=(16, 0))
+        c.subtitle(inner, c.CONTACT_LINE).pack(pady=(16, 0))
 
 
 class PasswordForm(ctk.CTkFrame):

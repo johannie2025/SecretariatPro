@@ -4,6 +4,7 @@ from decimal import Decimal
 import customtkinter as ctk
 
 from modules import billing
+from modules.i18n import get_lang
 from . import common as c
 
 
@@ -34,6 +35,9 @@ class BillingView(ctk.CTkFrame):
         self._lbl(top, "Client final *", 0, 2)
         self.final_name = c.entry(top, "Nom du client")
         self.final_name.grid(row=1, column=2, sticky="ew", padx=14, pady=(0, 12))
+        self._lbl(top, "Langue du document", 4, 0)
+        self.doc_lang = c.lang_selector(top)
+        self.doc_lang.grid(row=5, column=0, sticky="w", padx=14, pady=(0, 14))
         self._lbl(top, "Adresse du client final", 2, 0)
         self.final_addr = c.entry(top, "")
         self.final_addr.grid(row=3, column=0, columnspan=2, sticky="ew", padx=14, pady=(0, 14))
@@ -141,12 +145,13 @@ class BillingView(ctk.CTkFrame):
         cur = cl.get("currency", "FCFA")
         try:
             for r in self.rows:
-                r["total"].configure(text=billing.money(billing.D(r["qty"].get() or 0) * billing.D(r["price"].get() or 0), cur))
+                r["total"].configure(text=billing.money(billing.D(r["qty"].get() or 0) * billing.D(r["price"].get() or 0), cur, get_lang()))
             t = billing.compute_totals(self._items(), self.discount.get() or 0, self.tax.get() or 0)
-            self.totals.configure(text=f"Sous-total : {billing.money(t['subtotal'], cur)}\n"
-                                       f"Remise : - {billing.money(t['discount'], cur)}\n"
-                                       f"Taxe : {billing.money(t['tax'], cur)}\n"
-                                       f"TOTAL : {billing.money(t['total'], cur)}", text_color=c.TEXT)
+            m = lambda v: billing.money(v, cur, get_lang())
+            self.totals.configure(text=f"{c.tr('Sous-total')} : {m(t['subtotal'])}\n"
+                                       f"{c.tr('Remise')} : - {m(t['discount'])}\n"
+                                       f"{c.tr('Taxe')} : {m(t['tax'])}\n"
+                                       f"{c.tr('TOTAL')} : {m(t['total'])}", text_color=c.TEXT)
         except (ValueError, ArithmeticError):
             self.totals.configure(text="Saisie invalide : utilisez uniquement des chiffres.", text_color=c.DANGER)
 
@@ -159,12 +164,12 @@ class BillingView(ctk.CTkFrame):
             out, number, totals = billing.create_document(
                 self.db, cl["id"], self.type_cb.get(),
                 {"name": self.final_name.get(), "address": self.final_addr.get(), "phone": self.final_phone.get()},
-                self._items(), self.discount.get() or 0, self.tax.get() or 0, self.notes.get("1.0", "end"))
+                self._items(), self.discount.get() or 0, self.tax.get() or 0, self.notes.get("1.0", "end"), c.lang_code(self.doc_lang))
         except ValueError as e:
             return c.error(str(e), "Vérifiez le formulaire")
         self.load_history()
         self.app.pages["home"].refresh()
-        if c.confirm(f"{self.type_cb.get()} {number} créé(e) et archivé(e).\nL'ouvrir maintenant ?", "Terminé"):
+        if c.confirm(c.tr("{kind} {number} créé(e) et archivé(e).\nL'ouvrir maintenant ?", kind=c.tr(self.type_cb.get()), number=number), "Terminé"):
             c.open_path(out)
 
     def load_history(self):
@@ -178,5 +183,5 @@ class BillingView(ctk.CTkFrame):
             row.pack(fill="x", padx=12, pady=4)
             c.label(row, f"{d['number']}", bold=True, width=130).pack(side="left")
             c.label(row, f"{d['client_name']} → {d['final_client']}", color=c.MUTED, width=330).pack(side="left")
-            c.label(row, billing.money(Decimal(str(d["total"])), d["currency"]), width=150).pack(side="left")
+            c.label(row, billing.money(Decimal(str(d["total"])), d["currency"], get_lang()), width=150).pack(side="left")
             c.ghost_btn(row, "Ouvrir", lambda p=d["pdf_path"]: c.open_path(p), width=80).pack(side="right")

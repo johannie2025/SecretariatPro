@@ -32,6 +32,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
+      - name: Un seul OpenCV (version sans interface)
+        run: |
+          pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+          pip install opencv-python-headless
+
       - name: Vérification du code
         run: python -m compileall -q main.py modules ui
 
@@ -43,9 +48,12 @@ jobs:
             --name SecretariatPro `
             --icon assets/app.ico `
             --add-data "assets;assets" `
+            --hidden-import PIL._tkinter_finder `
+            --collect-all pymupdf `
             --collect-all customtkinter `
             --collect-all rapidocr_onnxruntime `
             --collect-binaries onnxruntime `
+            --collect-submodules pdf2docx `
             --collect-submodules ui `
             --collect-submodules modules `
             main.py

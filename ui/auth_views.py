@@ -96,7 +96,10 @@ class ActivationView(ctk.CTkFrame):
     def _done(self, ok, msg, days, mode):
         self.msg.configure(text=msg, text_color=c.SUCCESS if ok else c.DANGER)
         if ok:
-            self.db.log_activation(days, mode)
+            try:
+                self.db.log_activation(days, mode)
+            except Exception:  # noqa: BLE001  (journal facultatif)
+                pass
             self.after(900, self.on_success)
 
     def activate_local(self):

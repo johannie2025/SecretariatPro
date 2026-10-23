@@ -105,6 +105,11 @@ class Database:
                           (h, s, it, self.current_user["id"]))
         self.conn.commit()
 
+    def log_activation(self, days, mode="admin-local"):
+        self.conn.execute("INSERT INTO activations(activated_at,days,mode) VALUES(datetime('now','localtime'),?,?)",
+                          (int(days), mode))
+        self.conn.commit()
+
     def list_users(self):
         return [dict(r) for r in self.conn.execute("SELECT id,username,role,active FROM users ORDER BY role, username")]
 

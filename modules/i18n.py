@@ -398,6 +398,9 @@ Choisissez un mot de passe différent de celui par défaut.|Elija una contraseñ
 Vous ne pouvez pas supprimer toutes les pages.|No puede eliminar todas las páginas.|You cannot delete all the pages.
 Identifiant ou mot de passe incorrect.|Usuario o contraseña incorrectos.|Incorrect username or password.
 Nom|Nombre|Name
+Module indisponible|Módulo no disponible|Module unavailable
+Cette fonction n'a pas pu être chargée. Le reste de l'application fonctionne.|Esta función no se pudo cargar. El resto de la aplicación funciona.|This feature could not be loaded. The rest of the application works.
+Détail technique : {x}|Detalle técnico: {x}|Technical detail: {x}
 Comptes utilisateurs|Cuentas de usuario|User accounts
 Créez un compte pour chaque employé du secrétariat : il pourra travailler mais pas gérer la licence, les sauvegardes ni les comptes.|Cree una cuenta para cada empleado de secretaría: podrá trabajar, pero no gestionar la licencia, las copias de seguridad ni las cuentas.|Create an account for each secretarial employee: they can work but cannot manage the license, backups or accounts.
 Nom d'utilisateur|Nombre de usuario|Username

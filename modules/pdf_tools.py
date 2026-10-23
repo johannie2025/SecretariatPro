@@ -2,10 +2,7 @@
 import re
 from pathlib import Path
 
-try:
-    import pymupdf as fitz
-except ImportError:
-    import fitz
+from ._lazy import fitz
 
 COLORS = {"Noir": (0, 0, 0), "Rouge": (0.85, 0.1, 0.1), "Bleu": (0.1, 0.3, 0.8), "Vert": (0.1, 0.55, 0.2)}
 

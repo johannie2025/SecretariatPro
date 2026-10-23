@@ -1,17 +1,31 @@
 """Fenêtre principale : navigation latérale + pages."""
+import importlib
+import logging
+
 import customtkinter as ctk
 
 from modules import security
 from . import common as c
-from .about_view import AboutView
-from .billing_view import BillingView
-from .clients_view import ClientsView
-from .mail_view import MailView
-from .ocr_view import OcrView
-from .pdf_view import PdfView
-from .settings_view import SettingsView
-from .templates_view import TemplatesView
-from .writer_view import WriterView
+
+PAGE_SPECS = [("home", None, None), ("billing", "ui.billing_view", "BillingView"),
+              ("templates", "ui.templates_view", "TemplatesView"), ("ocr", "ui.ocr_view", "OcrView"),
+              ("pdf", "ui.pdf_view", "PdfView"), ("writer", "ui.writer_view", "WriterView"),
+              ("mail", "ui.mail_view", "MailView"), ("clients", "ui.clients_view", "ClientsView"),
+              ("settings", "ui.settings_view", "SettingsView"), ("about", "ui.about_view", "AboutView")]
+
+
+class UnavailablePage(ctk.CTkFrame):
+    """Affichée à la place d'une page qui n'a pas pu se charger (le reste de l'application reste utilisable)."""
+
+    def __init__(self, parent, app, exc):
+        super().__init__(parent, fg_color="transparent")
+        box = c.card(self)
+        box.pack(fill="x", pady=20)
+        c.title(box, "Module indisponible", 20).pack(anchor="w", padx=20, pady=(18, 4))
+        c.subtitle(box, "Cette fonction n'a pas pu être chargée. Le reste de l'application fonctionne.",
+                   wraplength=640).pack(anchor="w", padx=20)
+        c.subtitle(box, c.tr("Détail technique : {x}", x=f"{type(exc).__name__}: {str(exc)[:160]}"),
+                   wraplength=640).pack(anchor="w", padx=20, pady=(8, 18))
 
 
 class HomeView(ctk.CTkFrame):
@@ -98,10 +112,13 @@ class Dashboard(ctk.CTkFrame):
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
         self.pages = {}
-        for key, cls in (("home", HomeView), ("billing", BillingView), ("templates", TemplatesView),
-                         ("ocr", OcrView), ("pdf", PdfView), ("writer", WriterView), ("mail", MailView),
-                         ("clients", ClientsView), ("settings", SettingsView), ("about", AboutView)):
-            self.pages[key] = cls(self.content, self)
+        for key, mod, cls_name in PAGE_SPECS:
+            try:
+                cls = HomeView if mod is None else getattr(importlib.import_module(mod), cls_name)
+                self.pages[key] = cls(self.content, self)
+            except Exception as e:  # noqa: BLE001
+                logging.error("Page %s indisponible", key, exc_info=e)
+                self.pages[key] = UnavailablePage(self.content, self, e)
             self.pages[key].grid(row=0, column=0, sticky="nsew")
         self.show("home")
         self.update_license_label()

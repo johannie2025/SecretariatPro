@@ -11,10 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-try:
-    import pymupdf as fitz
-except ImportError:  # anciennes versions
-    import fitz
+from ._lazy import fitz
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 MAX_BYTES = 60 * 1024 * 1024

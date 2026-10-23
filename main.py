@@ -40,7 +40,8 @@ class App(ctk.CTk):
     def report_callback_exception(self, exc, val, tb):
         logging.error("Erreur interface", exc_info=(exc, val, tb))
         messagebox.showerror(i18n.t("Erreur"), i18n.t("Une erreur inattendue est survenue.\n"
-                                                       "Le détail a été enregistré dans le journal de l'application."))
+                                                       "Le détail a été enregistré dans le journal de l'application.")
+                             + f"\n\n{exc.__name__}: {str(val)[:200]}")
 
     def _swap(self, frame):
         if self.current is not None:

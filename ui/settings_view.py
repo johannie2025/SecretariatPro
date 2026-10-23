@@ -189,7 +189,10 @@ class SettingsView(ctk.CTkFrame):
         ok, msg = security.activate_local(days)
         self.msg.configure(text=msg, text_color=c.SUCCESS if ok else c.DANGER)
         if ok:
-            self.db.log_activation(days, "admin-local")
+            try:
+                self.db.log_activation(days, "admin-local")
+            except Exception:  # noqa: BLE001
+                pass
             self.refresh()
 
     def activate(self):

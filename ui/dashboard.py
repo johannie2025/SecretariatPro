@@ -1,5 +1,4 @@
 """Fenêtre principale : navigation latérale + pages."""
-import importlib
 import logging
 
 import customtkinter as ctk
@@ -7,11 +6,32 @@ import customtkinter as ctk
 from modules import security
 from . import common as c
 
-PAGE_SPECS = [("home", None, None), ("billing", "ui.billing_view", "BillingView"),
-              ("templates", "ui.templates_view", "TemplatesView"), ("ocr", "ui.ocr_view", "OcrView"),
-              ("pdf", "ui.pdf_view", "PdfView"), ("writer", "ui.writer_view", "WriterView"),
-              ("mail", "ui.mail_view", "MailView"), ("clients", "ui.clients_view", "ClientsView"),
-              ("settings", "ui.settings_view", "SettingsView"), ("about", "ui.about_view", "AboutView")]
+def _page_class(key):
+    """Imports écrits en clair (donc repérés par PyInstaller), chargés un par un pour isoler une éventuelle panne."""
+    if key == "billing":
+        from ui.billing_view import BillingView as cls
+    elif key == "templates":
+        from ui.templates_view import TemplatesView as cls
+    elif key == "ocr":
+        from ui.ocr_view import OcrView as cls
+    elif key == "pdf":
+        from ui.pdf_view import PdfView as cls
+    elif key == "writer":
+        from ui.writer_view import WriterView as cls
+    elif key == "mail":
+        from ui.mail_view import MailView as cls
+    elif key == "clients":
+        from ui.clients_view import ClientsView as cls
+    elif key == "settings":
+        from ui.settings_view import SettingsView as cls
+    elif key == "about":
+        from ui.about_view import AboutView as cls
+    else:
+        raise KeyError(key)
+    return cls
+
+
+PAGE_KEYS = ["home", "billing", "templates", "ocr", "pdf", "writer", "mail", "clients", "settings", "about"]
 
 
 class UnavailablePage(ctk.CTkFrame):
@@ -112,9 +132,9 @@ class Dashboard(ctk.CTkFrame):
         self.content.grid_columnconfigure(0, weight=1)
         self.content.grid_rowconfigure(0, weight=1)
         self.pages = {}
-        for key, mod, cls_name in PAGE_SPECS:
+        for key in PAGE_KEYS:
             try:
-                cls = HomeView if mod is None else getattr(importlib.import_module(mod), cls_name)
+                cls = HomeView if key == "home" else _page_class(key)
                 self.pages[key] = cls(self.content, self)
             except Exception as e:  # noqa: BLE001
                 logging.error("Page %s indisponible", key, exc_info=e)

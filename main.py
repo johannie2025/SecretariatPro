@@ -9,9 +9,10 @@ import customtkinter as ctk
 from modules import i18n, security
 from modules.db import Database
 from modules.paths import app_data_dir, resource_path
+from modules.version import APP_BUILD
 
 logging.basicConfig(filename=str(app_data_dir() / "app.log"), level=logging.ERROR,
-                    format="%(asctime)s %(levelname)s %(message)s")
+                    format="%(asctime)s %(levelname)s [build " + APP_BUILD + "] %(message)s")
 
 LICENSE_CHECK_MS = 10 * 60 * 1000
 

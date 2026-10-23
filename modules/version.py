@@ -1,0 +1,2 @@
+APP_VERSION = "1.1"
+APP_BUILD = "2026-10-23-b"

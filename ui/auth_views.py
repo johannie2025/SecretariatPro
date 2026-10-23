@@ -2,6 +2,7 @@
 import customtkinter as ctk
 
 from modules import i18n, security
+from modules.version import APP_BUILD, APP_VERSION
 from . import common as c
 
 
@@ -30,7 +31,8 @@ class LoginView(ctk.CTkFrame):
         self.msg = c.label(inner, "", color=c.DANGER, size=12, wraplength=320)
         self.msg.pack(anchor="w", pady=(6, 0))
         c.primary_btn(inner, "Se connecter", self.submit, width=320).pack(pady=(10, 0))
-        c.subtitle(inner, c.CONTACT_LINE).pack(pady=(14, 6))
+        c.subtitle(inner, c.CONTACT_LINE).pack(pady=(14, 2))
+        c.subtitle(inner, f"v{APP_VERSION} — build {APP_BUILD}").pack(pady=(0, 6))
         lseg = ctk.CTkSegmentedButton(inner, values=[i18n.LANG_NAMES[x] for x in i18n.LANGS], command=self.change_lang,
                                       selected_color=c.ACCENT, selected_hover_color=c.ACCENT_HOVER)
         lseg.set(i18n.LANG_NAMES[i18n.get_lang()])

@@ -3,6 +3,7 @@ import webbrowser
 
 import customtkinter as ctk
 
+from modules.version import APP_BUILD, APP_VERSION
 from . import common as c
 
 
@@ -27,4 +28,4 @@ class AboutView(ctk.CTkFrame):
             c.primary_btn(row, "WhatsApp", lambda d=digits: webbrowser.open(f"https://wa.me/{d}"), width=130).pack(side="right", padx=(6, 14))
             c.ghost_btn(row, "Copier", lambda s=shown: c.copy_to_clipboard(self, s), width=90).pack(side="right")
         c.subtitle(body, "Le bouton WhatsApp ouvre votre navigateur ; l'application elle-même n'envoie aucune donnée.").pack(anchor="w", pady=(10, 0))
-        c.subtitle(body, "SecretariatPro v1.1  •  © W Design").pack(anchor="w", pady=(6, 20))
+        c.subtitle(body, f"SecretariatPro v{APP_VERSION}  •  build {APP_BUILD}  •  © W Design").pack(anchor="w", pady=(6, 20))

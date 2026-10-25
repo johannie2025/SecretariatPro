@@ -1,0 +1,86 @@
+name: Build SecretariatPro (Windows .exe)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      onefile:
+        description: "Un seul .exe (démarrage plus lent) au lieu d'un dossier"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Un seul OpenCV (version sans interface)
+        run: |
+          pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+          pip install opencv-python-headless
+
+      - name: IA locale - moteur llama.cpp (facultatif, ignoré si indisponible)
+        continue-on-error: true
+        run: pip install llama-cpp-python --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+      - name: Vérification du code
+        run: python -m compileall -q main.py modules ui
+
+      - name: Compilation PyInstaller
+        shell: pwsh
+        run: |
+          $mode = if ("${{ github.event.inputs.onefile }}" -eq "true") { "--onefile" } else { "--onedir" }
+          $flags = @("--noconsole", $mode, "--clean", "--noconfirm", "--name", "SecretariatPro", "--icon", "assets/app.ico",
+            "--add-data", "assets;assets", "--hidden-import", "PIL._tkinter_finder",
+            "--collect-all", "pymupdf", "--collect-all", "customtkinter", "--collect-all", "rapidocr_onnxruntime",
+            "--collect-binaries", "onnxruntime", "--collect-submodules", "pdf2docx",
+            "--collect-submodules", "ui", "--collect-submodules", "modules")
+          python -c "import llama_cpp" 2>$null
+          if ($LASTEXITCODE -eq 0) { $flags += @("--collect-all", "llama_cpp"); Write-Host "Moteur IA inclus" } else { Write-Host "Moteur IA absent : l'application fonctionnera sans l'IA" }
+          pyinstaller @flags main.py
+
+      - name: Dossier models (IA locale)
+        shell: pwsh
+        run: |
+          $root = if (Test-Path dist/SecretariatPro.exe) { "dist" } else { "dist/SecretariatPro" }
+          New-Item -ItemType Directory -Force "$root/models" | Out-Null
+          Copy-Item models/LISEZ-MOI.txt "$root/models/"
+
+      - name: Archive ZIP
+        shell: pwsh
+        run: |
+          if (Test-Path dist/SecretariatPro.exe) {
+            Compress-Archive -Path dist/SecretariatPro.exe, dist/models -DestinationPath SecretariatPro_Windows.zip
+          } else {
+            Compress-Archive -Path dist/SecretariatPro/* -DestinationPath SecretariatPro_Windows.zip
+          }
+
+      - name: Artifact téléchargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecretariatPro-Windows
+          path: SecretariatPro_Windows.zip
+
+      - name: Release GitHub (si tag v*)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SecretariatPro_Windows.zip

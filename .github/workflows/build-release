@@ -37,6 +37,10 @@ jobs:
           pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
           pip install opencv-python-headless
 
+      - name: IA locale - moteur llama.cpp (facultatif, ignoré si indisponible)
+        continue-on-error: true
+        run: pip install llama-cpp-python --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
       - name: Vérification du code
         run: python -m compileall -q main.py modules ui
 
@@ -44,25 +48,27 @@ jobs:
         shell: pwsh
         run: |
           $mode = if ("${{ github.event.inputs.onefile }}" -eq "true") { "--onefile" } else { "--onedir" }
-          pyinstaller --noconsole $mode --clean --noconfirm `
-            --name SecretariatPro `
-            --icon assets/app.ico `
-            --add-data "assets;assets" `
-            --hidden-import PIL._tkinter_finder `
-            --collect-all pymupdf `
-            --collect-all customtkinter `
-            --collect-all rapidocr_onnxruntime `
-            --collect-binaries onnxruntime `
-            --collect-submodules pdf2docx `
-            --collect-submodules ui `
-            --collect-submodules modules `
-            main.py
+          $flags = @("--noconsole", $mode, "--clean", "--noconfirm", "--name", "SecretariatPro", "--icon", "assets/app.ico",
+            "--add-data", "assets;assets", "--hidden-import", "PIL._tkinter_finder",
+            "--collect-all", "pymupdf", "--collect-all", "customtkinter", "--collect-all", "rapidocr_onnxruntime",
+            "--collect-binaries", "onnxruntime", "--collect-submodules", "pdf2docx",
+            "--collect-submodules", "ui", "--collect-submodules", "modules")
+          python -c "import llama_cpp" 2>$null
+          if ($LASTEXITCODE -eq 0) { $flags += @("--collect-all", "llama_cpp"); Write-Host "Moteur IA inclus" } else { Write-Host "Moteur IA absent : l'application fonctionnera sans l'IA" }
+          pyinstaller @flags main.py
+
+      - name: Dossier models (IA locale)
+        shell: pwsh
+        run: |
+          $root = if (Test-Path dist/SecretariatPro.exe) { "dist" } else { "dist/SecretariatPro" }
+          New-Item -ItemType Directory -Force "$root/models" | Out-Null
+          Copy-Item models/LISEZ-MOI.txt "$root/models/"
 
       - name: Archive ZIP
         shell: pwsh
         run: |
           if (Test-Path dist/SecretariatPro.exe) {
-            Compress-Archive -Path dist/SecretariatPro.exe -DestinationPath SecretariatPro_Windows.zip
+            Compress-Archive -Path dist/SecretariatPro.exe, dist/models -DestinationPath SecretariatPro_Windows.zip
           } else {
             Compress-Archive -Path dist/SecretariatPro/* -DestinationPath SecretariatPro_Windows.zip
           }

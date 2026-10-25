@@ -11,10 +11,38 @@ dans les trois langues, avec montants en toutes lettres, dates et séparateurs a
 Note : l'OCR reconnaît bien le français, l'espagnol et l'anglais ; vérifiez les ñ, ¿ et ¡ sur les scans de
 mauvaise qualité.
 
+## IA locale (rédaction automatique)
+L'application embarque un moteur d'IA (llama.cpp) qui fonctionne **hors-ligne, sur le processeur**.
+1. Téléchargez UNE FOIS un petit modèle au format **.gguf** (voir `models/LISEZ-MOI.txt` : Qwen2.5-1.5B-Instruct,
+   Llama-3.2-3B-Instruct ou Phi-3.5-mini, version Q4_K_M).
+2. Déposez-le dans le dossier **models** (à côté de `SecretariatPro.exe`). Paramètres → Intelligence artificielle
+   détecte le modèle ; « Tester l'IA » vérifie qu'il répond.
+3. Rédaction → « ✨ Rédiger avec l'IA » (corps d'une lettre, note, procès-verbal, ordre du jour...), onglet
+   « Assistant IA » (texte libre) et « ✨ Améliorer avec l'IA » (correction du style et de l'orthographe).
+L'IA écrit le texte ; l'en-tête, la signature, la typographie et l'export Word/PDF restent gérés par l'application.
+Sans modèle, tout le reste de l'application fonctionne normalement.
+
+## IA en ligne (clés gratuites, rotation automatique) — réservée à l'administrateur
+Menu **Intelligence artificielle** (visible uniquement par l'administrateur) :
+- Fournisseurs : OpenRouter, BazaarLink, Groq, Google Gemini, Mistral, DeepSeek + **fournisseur personnalisé**
+  (toute API « compatible OpenAI »). Plusieurs clés par fournisseur possibles (séparées par « ; »).
+- **Récupérer les modèles gratuits** : la liste est téléchargée à jour chez le fournisseur (elle change souvent) ;
+  « Choix automatique » coche les meilleurs modèles gratuits ; l'ordre de la liste est l'ordre d'essai.
+- **Rotation et pauses automatiques** : quand un quota est atteint (erreur 429), la clé/le modèle est mis en pause
+  (durée donnée par le fournisseur, ou jusqu'à minuit pour un quota journalier), puis repris tout seul ; l'application
+  passe au suivant dans l'**ordre de priorité** (IA locale incluse, réordonnable avec ▲ ▼).
+- **OCR IA** : si un modèle à vision est coché « OCR », les documents scannés sont lus par ce modèle (texte plus fidèle,
+  tableaux en Markdown, bouton « Word (texte IA) »). En cas d'échec, l'**OCR de l'application** prend le relais, page par page.
+- **Repli** : si aucune IA ne répond (quota, pas d'Internet), la rédaction utilise la **mise en forme automatique** de l'application.
+- **Langue** : l'IA écrit dans la langue de l'application, sauf si l'utilisateur demande une autre langue dans sa consigne.
+- **Confidentialité** : l'IA en ligne envoie les textes (et les pages scannées pour l'OCR IA) au fournisseur choisi ; une case de
+  confirmation est obligatoire. Les clés API sont chiffrées (AES-256) et liées à l'ordinateur : après une restauration sur un autre PC,
+  il faut les ressaisir.
+
 ## Fonctionnalités
-- **Facturation** : facture, proforma, devis pour les clients des entrepreneurs, avec montant en toutes lettres.
+- **Facturation** : historique avec recherche (n°, client, date, type), bouton « Créer » puis formulaire ; facture, proforma, devis avec montant en toutes lettres.
 - **Numérisation (OCR)** : photo, scan ou PDF → Word reconstruit (titres, paragraphes, **tableaux, images et dessins**)
-  ou PDF recherchable fidèle à l'original ; copie du texte ; enregistrement dans le dossier du client.
+  ou PDF recherchable fidèle à l'original ; extraction des images (photos, logos, cachets, signatures) ; copie du texte ; enregistrement dans le dossier du client.
 - **Outils PDF** : éditeur visuel (texte, signature/cachet, masquage, remplacement, surlignage), fusion,
   extraction, réorganisation, suppression, pivotement, séparation, PDF ↔ Word / images, mot de passe,
   filigrane, numérotation, compression.

@@ -1,0 +1,14 @@
+IA LOCALE — SecretariatPro
+==========================
+
+Déposez ICI un fichier de modèle au format .gguf : l'application le détecte toute seule.
+Tout fonctionne hors-ligne, sur le processeur (aucune carte graphique nécessaire), sans compte ni abonnement.
+
+Modèles conseillés (petits, bons en français / espagnol / anglais) — à télécharger UNE FOIS sur huggingface.co
+en cherchant le nom suivi de « GGUF », version quantifiée « Q4_K_M » :
+  - Qwen2.5-1.5B-Instruct   (~1 Go)  : rapide, 4 Go de RAM suffisent
+  - Llama-3.2-3B-Instruct   (~2 Go)  : meilleure qualité, 8 Go de RAM conseillés
+  - Phi-3.5-mini-instruct   (~2,4 Go): bon en rédaction, 8 Go de RAM conseillés
+
+Plusieurs modèles ? Choisissez-en un dans Paramètres → Intelligence artificielle.
+Le premier démarrage du modèle prend 10 à 60 secondes ; ensuite la rédaction est plus rapide.

@@ -24,8 +24,12 @@ class ClientsView(ctk.CTkFrame):
         self.listbox = ctk.CTkScrollableFrame(left, fg_color="transparent", width=250)
         self.listbox.pack(fill="both", expand=True, padx=6, pady=(0, 10))
 
-        right = c.card(self)
+        right = self.right = c.card(self)
         right.grid(row=1, column=1, sticky="nsew", pady=(12, 0))
+        self.hint = c.card(self)
+        self.hint.grid(row=1, column=1, sticky="nsew", pady=(12, 0))
+        c.subtitle(self.hint, "Sélectionnez un entrepreneur dans la liste ou cliquez sur « + Nouvel entrepreneur ».",
+                   wraplength=420).pack(padx=24, pady=40)
         form = ctk.CTkScrollableFrame(right, fg_color="transparent")
         form.pack(fill="both", expand=True, padx=10, pady=10)
         form.grid_columnconfigure((0, 1), weight=1, uniform="f")
@@ -49,7 +53,7 @@ class ClientsView(ctk.CTkFrame):
         c.ghost_btn(actions, "Ouvrir le dossier", self.open_folder, width=150).pack(side="left", padx=8)
         c.ghost_btn(actions, "Supprimer", self.delete, width=120, danger=True).pack(side="right")
         self.refresh()
-        self.new()
+        self.show_hint()
 
     def refresh(self):
         for w in self.listbox.winfo_children():
@@ -67,14 +71,26 @@ class ClientsView(ctk.CTkFrame):
         self.logo_path = data.get("logo_path", "")
         self.logo_lbl.configure(text=self.logo_path.split("\\")[-1].split("/")[-1] or "Aucun logo")
 
+    def show_hint(self):
+        self.current_id = None
+        self.right.grid_remove()
+        self.hint.grid()
+        self.refresh()
+
+    def _show_form(self):
+        self.hint.grid_remove()
+        self.right.grid()
+
     def new(self):
         self.current_id = None
         self._fill({"currency": "FCFA", "tax_rate": "0"})
+        self._show_form()
         self.refresh()
 
     def load(self, cid):
         self.current_id = cid
         self._fill(self.db.get_client(cid))
+        self._show_form()
         self.refresh()
 
     def pick_logo(self):
@@ -100,7 +116,7 @@ class ClientsView(ctk.CTkFrame):
         if c.confirm("Supprimer cet entrepreneur et son historique de documents ?\n"
                      "(Les fichiers PDF déjà créés restent sur votre ordinateur.)"):
             self.db.delete_client(self.current_id)
-            self.new()
+            self.show_hint()
 
     def open_folder(self):
         if self.current_id:

@@ -94,8 +94,9 @@ class SettingsView(ctk.CTkFrame):
                          "la licence, les sauvegardes ni les comptes.", wraplength=620).pack(anchor="w", padx=18)
         self.users_box = ctk.CTkFrame(card, fg_color="transparent")
         self.users_box.pack(fill="x", padx=14, pady=8)
-        form = ctk.CTkFrame(card, fg_color="transparent")
-        form.pack(fill="x", padx=14, pady=(0, 16))
+        c.primary_btn(card, "+  Nouveau compte", lambda: self.toggle_user_form(True), width=190).pack(anchor="w", padx=18, pady=(0, 14))
+        form = self.u_form = ctk.CTkFrame(card, fg_color="transparent")   # affiché après « Nouveau compte »
+        self.u_anchor = card
         self.u_name = c.entry(form, "Nom d'utilisateur", 170)
         self.u_name.grid(row=0, column=0, padx=4, pady=4)
         self.u_pwd = c.entry(form, "Mot de passe provisoire", 190, show="•")
@@ -105,7 +106,14 @@ class SettingsView(ctk.CTkFrame):
         self.u_role.set("Secrétariat")
         self.u_role.grid(row=0, column=2, padx=4)
         c.primary_btn(form, "Créer le compte", self.create_user, width=150).grid(row=0, column=3, padx=4)
+        c.ghost_btn(form, "Annuler", lambda: self.toggle_user_form(False), width=90).grid(row=0, column=4, padx=4)
         self.load_users()
+
+    def toggle_user_form(self, show):
+        if show:
+            self.u_form.pack(fill="x", padx=14, pady=(0, 16))
+        else:
+            self.u_form.pack_forget()
 
     def load_users(self):
         for w in self.users_box.winfo_children():
@@ -129,6 +137,7 @@ class SettingsView(ctk.CTkFrame):
             return c.error(str(e))
         self.u_name.delete(0, "end")
         self.u_pwd.delete(0, "end")
+        self.toggle_user_form(False)
         self.load_users()
         c.info("Compte créé. L'utilisateur devra changer son mot de passe à la première connexion.")
 

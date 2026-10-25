@@ -228,7 +228,7 @@ def user_error(exc, default="L'opération a échoué. Vérifiez le fichier et r�
         error(str(exc))
     else:
         logging.error("Erreur opération", exc_info=exc)
-        error(default)
+        error(t(default) + f"\n\n{type(exc).__name__}: {str(exc)[:160]}")
 
 
 def parse_date(text):
@@ -309,3 +309,32 @@ def lang_selector(parent, width=150):
 
 def lang_code(seg):
     return seg.get().lower()
+
+
+def stream_bg(widget, producer, on_token, done):
+    """Exécute producer(callback) hors de l'interface et affiche les morceaux au fil de l'eau."""
+    q = queue.Queue()
+
+    def work():
+        try:
+            producer(lambda tok: q.put(("tok", tok)))
+            q.put(("end", None))
+        except Exception as e:  # noqa: BLE001
+            q.put(("err", e))
+
+    threading.Thread(target=work, daemon=True).start()
+
+    def poll():
+        try:
+            while True:
+                kind, val = q.get_nowait()
+                if kind == "tok":
+                    on_token(val)
+                elif kind == "end":
+                    return done(True, None)
+                else:
+                    return done(False, val)
+        except queue.Empty:
+            widget.after(60, poll)
+
+    widget.after(60, poll)

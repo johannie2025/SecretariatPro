@@ -26,12 +26,14 @@ def _page_class(key):
         from ui.settings_view import SettingsView as cls
     elif key == "about":
         from ui.about_view import AboutView as cls
+    elif key == "ai":
+        from ui.ai_view import AiView as cls
     else:
         raise KeyError(key)
     return cls
 
 
-PAGE_KEYS = ["home", "billing", "templates", "ocr", "pdf", "writer", "mail", "clients", "settings", "about"]
+PAGE_KEYS = ["home", "billing", "templates", "ocr", "pdf", "writer", "mail", "clients", "settings", "ai", "about"]
 
 
 class UnavailablePage(ctk.CTkFrame):
@@ -100,7 +102,7 @@ class Dashboard(ctk.CTkFrame):
     NAV = [("home", "🏠  Accueil"), ("billing", "🧾  Facturation"), ("templates", "📄  Modèles Word"),
            ("ocr", "🔍  Numérisation"), ("pdf", "📑  Outils PDF"), ("writer", "✍️  Rédaction"),
            ("mail", "📬  Courrier & tâches"), ("clients", "👥  Entrepreneurs"), ("settings", "⚙️  Paramètres"),
-           ("about", "ℹ️  À propos")]
+           ("ai", "🤖  Intelligence artificielle"), ("about", "ℹ️  À propos")]
 
     def __init__(self, parent, db, on_logout, rebuild=None):
         super().__init__(parent, fg_color=c.BG)
@@ -113,7 +115,10 @@ class Dashboard(ctk.CTkFrame):
         side.grid_propagate(False)
         ctk.CTkLabel(side, image=c.logo_image(190), text="").pack(pady=(16, 12))
         self.buttons = {}
+        admin = db.is_admin()
         for key, text in self.NAV:
+            if key == "ai" and not admin:
+                continue
             b = ctk.CTkButton(side, text=text, anchor="w", height=36, corner_radius=10, fg_color="transparent",
                               hover_color=c.SOFT, text_color=c.TEXT, font=(c.FONT, 14),
                               command=lambda k=key: self.show(k))
@@ -133,6 +138,8 @@ class Dashboard(ctk.CTkFrame):
         self.content.grid_rowconfigure(0, weight=1)
         self.pages = {}
         for key in PAGE_KEYS:
+            if key == "ai" and not admin:
+                continue
             try:
                 cls = HomeView if key == "home" else _page_class(key)
                 self.pages[key] = cls(self.content, self)

@@ -1,4 +1,5 @@
 """Rédaction assistée : documents types, mise en forme automatique du texte, export Word/PDF."""
+import io
 import re
 from datetime import date
 from decimal import Decimal
@@ -88,6 +89,18 @@ def format_text(raw: str, with_typo=True, lang: str = "fr") -> list:
     """Texte brut / issu d'un OCR → éléments structurés (titre, sous-titres, paragraphes, listes)."""
     raw = raw.replace("\r", "")
     raw = re.sub(r"(\w)-\n(\w)", r"\1\2", raw)
+    tables = []
+
+    def _grab_table(m):                       # tableaux Markdown « | a | b | » (issus de l'OCR IA)
+        rows = []
+        for ln in m.group(0).strip().split("\n"):
+            if re.fullmatch(r"[\s|:\-]+", ln) and "-" in ln:
+                continue
+            rows.append([c.strip() for c in ln.strip().strip("|").split("|")])
+        tables.append(rows)
+        return f"\n\n\x00TABLE{len(tables) - 1}\x00\n\n"
+
+    raw = re.sub(r"(?:^[ \t]*\|.*\|[ \t]*$\n?)+", _grab_table, raw, flags=re.M)
     blocks = [b for b in re.split(r"\n\s*\n", raw) if b.strip()]
     els, first = [], True
 
@@ -96,6 +109,10 @@ def format_text(raw: str, with_typo=True, lang: str = "fr") -> list:
         for para in text.split("\n"):
             para = para.strip()
             if not para:
+                continue
+            if para.startswith("\x00TABLE"):
+                els.append({"t": "table", "rows": tables[int(re.findall(r"\d+", para)[0])]})
+                first = False
                 continue
             short = len(para) < 80 and not re.search(r"[.!?;,]$", para)
             if first and short and (para.isupper() or len(blocks) > 1):
@@ -149,6 +166,8 @@ def elements_to_text(els) -> str:
             out.append("\n".join(f"{n}. {i}" for n, i in enumerate(e["items"], 1)))
         elif e["t"] == "letterhead":
             out.append("\n".join([e["name"]] + e["lines"]))
+        elif e["t"] == "table":
+            out.append("\n".join(" | ".join(r) for r in e["rows"]))
     return "\n\n".join(out)
 
 
@@ -383,6 +402,15 @@ def b_relance(v, s):
     return b_lettre(v, s)
 
 
+FALLBACK_TEXT = {
+    "fr": {"corps": "Nous vous écrivons au sujet de « {objet} ».\n\nNous restons à votre disposition pour toute information complémentaire.",
+           "ordre": "Ouverture de la séance\nPoints à traiter\nQuestions diverses"},
+    "es": {"corps": "Le escribimos en relación con «{objet}».\n\nQuedamos a su disposición para cualquier información adicional.",
+           "ordre": "Apertura de la sesión\nPuntos a tratar\nRuegos y preguntas"},
+    "en": {"corps": "We are writing to you regarding \"{objet}\".\n\nWe remain at your disposal for any further information.",
+           "ordre": "Opening of the meeting\nItems to discuss\nAny other business"},
+}
+
 COMMON = [("lieu", "Lieu", "line"), ("date", "Date (laisser vide = aujourd'hui)", "line"), ("signataire", "Nom du signataire", "line")]
 DOC_TYPES = {
     "Lettre administrative": (b_lettre, [("expediteur", "Expéditeur (si pas d'en-tête)", "text"), ("destinataire", "Destinataire", "line"),
@@ -508,6 +536,23 @@ def to_docx(els, path, style="Classique (Times 12)"):
         elif t == "space":
             for _ in range(e.get("n", 1)):
                 d.add_paragraph()
+        elif t == "table":
+            ncol = max(len(r) for r in e["rows"])
+            tb = d.add_table(rows=len(e["rows"]), cols=ncol)
+            tb.style = "Table Grid"
+            for i, r in enumerate(e["rows"]):
+                for j in range(ncol):
+                    cell = tb.cell(i, j)
+                    cell.text = ""
+                    run = cell.paragraphs[0].add_run(r[j] if j < len(r) else "")
+                    run.font.size = Pt(max(8, size - 1))
+                    run.bold = i == 0
+            d.add_paragraph()
+        elif t == "image":
+            try:
+                d.add_paragraph().add_run().add_picture(io.BytesIO(e["data"]), width=Cm(min(e.get("width", 12), 16)))
+            except Exception:
+                pass
     d.save(str(path))
     return Path(path)
 
@@ -555,6 +600,24 @@ def to_pdf(els, path, style="Classique (Times 12)"):
                                        bulletText="•" if t == "bullets" else f"{k}."))
         elif t == "space":
             story.append(Spacer(1, e.get("n", 1) * 0.6 * cm))
+        elif t == "table":
+            from reportlab.platypus import Table, TableStyle
+            cell = ps(fontSize=size - 1, leading=(size - 1) * 1.2, spaceAfter=0)
+            ncol = max(len(r) for r in e["rows"])
+            data = [[Paragraph(esc(r[j] if j < len(r) else ""), cell) for j in range(ncol)] for r in e["rows"]]
+            tb = Table(data, repeatRows=1)
+            tb.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.5, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF1FC"))]))
+            story += [tb, Spacer(1, 8)]
+        elif t == "image":
+            try:
+                from PIL import Image as PI
+                with PI.open(io.BytesIO(e["data"])) as im:
+                    w0, h0 = im.size
+                wd = min(e.get("width", 12), 16) * cm
+                story += [Image(io.BytesIO(e["data"]), width=wd, height=wd * h0 / w0), Spacer(1, 6)]
+            except Exception:
+                pass
     SimpleDocTemplate(str(path), pagesize=A4, leftMargin=2.5 * cm, rightMargin=2.5 * cm, topMargin=2.2 * cm,
                       bottomMargin=2.2 * cm).build(story)
     return Path(path)

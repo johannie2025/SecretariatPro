@@ -6,7 +6,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from modules import i18n, security
+from modules import ai_manager, i18n, security
 from modules.db import Database
 from modules.paths import app_data_dir, resource_path
 from modules.version import APP_BUILD
@@ -23,6 +23,7 @@ class App(ctk.CTk):
         self.db = Database()
         self.db.init()
         i18n.set_lang(self.db.get_setting("lang", "fr"))
+        ai_manager.load_cooldowns(self.db)
         ctk.set_appearance_mode(self.db.get_setting("theme", "light"))
         self.title("SecretariatPro — W Design")
         self.geometry("1240x800")

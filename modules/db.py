@@ -276,6 +276,22 @@ class Database:
             "FROM tasks WHERE done=0").fetchone()
         return dict(r)
 
+    def search_documents(self, search="", doc_type="", client_id=None, limit=500):
+        s = search.strip()
+        like = f"%{s}%"
+        m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", s)          # JJ/MM/AAAA → format enregistré AAAA-MM-JJ
+        iso_like = f"%{m.group(3)}-{int(m.group(2)):02d}-{int(m.group(1)):02d}%" if m else like
+        rows = self.conn.execute(
+            "SELECT d.*, c.name AS client_name FROM documents d JOIN clients c ON c.id=d.client_id "
+            "WHERE (?='' OR d.number LIKE ? OR d.final_client LIKE ? OR c.name LIKE ? OR d.issue_date LIKE ?) "
+            "AND (?='' OR d.doc_type=?) AND (? IS NULL OR d.client_id=?) ORDER BY d.id DESC LIMIT ?",
+            (s, like, like, like, iso_like, doc_type, doc_type, client_id, client_id, limit))
+        return [dict(r) for r in rows]
+
+    def delete_document(self, doc_id):
+        self.conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+        self.conn.commit()
+
     def stats(self):
         r = self.conn.execute(
             "SELECT (SELECT COUNT(*) FROM clients) AS clients, "

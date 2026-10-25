@@ -189,3 +189,23 @@ def check_license() -> LicenseStatus:
     state["last_seen"] = max(now, float(state.get("last_seen", 0)))
     _save_state(state, hwid)
     return LicenseStatus(True, "", expires, (expires - today).days)
+
+
+# ----------------------------------------------------------- secrets (clés API)
+def _secret_aes() -> AESGCM:
+    key = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"SecretariatPro-secrets-v1",
+               info=b"api-keys").derive(get_hwid().encode())
+    return AESGCM(key)
+
+
+def encrypt_secret(text: str) -> str:
+    nonce = secrets.token_bytes(12)
+    return base64.urlsafe_b64encode(nonce + _secret_aes().encrypt(nonce, text.encode(), b"SP-secret")).decode()
+
+
+def decrypt_secret(token: str) -> str | None:
+    try:
+        blob = base64.urlsafe_b64decode(token.encode())
+        return _secret_aes().decrypt(blob[:12], blob[12:], b"SP-secret").decode()
+    except Exception:
+        return None

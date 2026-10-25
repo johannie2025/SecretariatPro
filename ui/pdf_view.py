@@ -85,7 +85,7 @@ class PdfView(ctk.CTkFrame):
         c.primary_btn(bar, "Enregistrer", self.ed_save, width=120).pack(side="right")
         c.ghost_btn(bar, "Supprimer la page", self.ed_delete, width=150, danger=True).pack(side="right", padx=6)
         c.ghost_btn(bar, "Pivoter", self.ed_rotate, width=90).pack(side="right")
-        c.ghost_btn(bar, "Annuler", self.ed_undo, width=90).pack(side="right", padx=6)
+        c.ghost_btn(bar, "Annuler l'action", self.ed_undo, width=140).pack(side="right", padx=6)
         tools = ctk.CTkFrame(tab, fg_color="transparent")
         tools.pack(fill="x", pady=8)
         self.tool = ctk.CTkSegmentedButton(tools, values=["Texte", "Image / cachet", "Masquer", "Remplacer", "Surligner"],

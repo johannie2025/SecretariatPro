@@ -172,8 +172,19 @@ class PdfEditor:
     """Édition en mémoire avec annulation ; rien n'est écrit tant qu'on n'enregistre pas."""
 
     def __init__(self, path, password=None):
-        with _open(path, password) as d:
-            self._data = d.tobytes()
+        try:
+            with _open(path, password) as d:
+                self._data = d.tobytes()
+        except ValueError:
+            raise
+        except Exception:                      # ouverture tolérante : lecture du flux binaire (chemins accentués, PDF abîmés)
+            doc = fitz.open(stream=Path(path).read_bytes(), filetype="pdf")
+            try:
+                if doc.needs_pass and not (password and doc.authenticate(password)):
+                    raise ValueError("Ce PDF est protégé : mot de passe requis ou incorrect.")
+                self._data = doc.tobytes(garbage=1)
+            finally:
+                doc.close()
         self.doc = fitz.open("pdf", self._data)
         self.undo_stack = []
 

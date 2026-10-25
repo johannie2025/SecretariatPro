@@ -40,6 +40,8 @@ class OcrResult:
     n_tables: int = 0
     n_figures: int = 0
     n_pages: int = 0
+    figures: list = field(default_factory=list)      # [{'name','data'(png ou jpg),'page'}]
+    ai_text: str = ""                                 # texte lu par l'OCR IA (si activé)
 
 
 def _engine_get():
@@ -96,29 +98,92 @@ def detect_tables(arr):
     return tables
 
 
-def detect_figures(arr, boxes, tables):
-    import cv2
-    gray = cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
+def _page_background(gray):
     h, w = gray.shape
-    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    m = max(6, min(h, w) // 60)
+    edge = np.concatenate([gray[:m].ravel(), gray[-m:].ravel(), gray[:, :m].ravel(), gray[:, -m:].ravel()])
+    return float(np.median(edge))
+
+
+def _merge_rects(rects):
+    rects = [list(r) for r in rects]
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(rects)):
+            for j in range(i + 1, len(rects)):
+                a, b = rects[i], rects[j]
+                if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:      # chevauchement
+                    rects[i] = [min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])]
+                    del rects[j]
+                    changed = True
+                    break
+            if changed:
+                break
+    return [tuple(r) for r in rects]
+
+
+def _absorb_logo_text(full, boxes, rects, w, h):
+    """Un logo = dessin + quelques lignes de texte : on garde l'ensemble comme une seule image."""
+    import cv2
+    if not rects:
+        return rects
+    k = max(25, w // 28)
+    closed = cv2.morphologyEx(full, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(closed)
+    out = []
+    for (x0, y0, x1, y1) in rects:
+        region = labels[y0:y1, x0:x1].ravel()
+        region = region[region > 0]
+        if not region.size:
+            out.append((x0, y0, x1, y1))
+            continue
+        lab = int(np.bincount(region).argmax())
+        sx, sy, sw, sh = (int(v) for v in stats[lab][:4])
+        U = (sx, sy, sx + sw, sy + sh)
+        inside = [b for b in boxes if _center_in(b, U)]
+        share = (x1 - x0) * (y1 - y0) / float(sw * sh)          # part du dessin dans l'ensemble
+        if (len(inside) <= 6 and sw * sh <= 0.25 * w * h and share >= 0.12 and
+                U[0] <= x0 + 20 and U[1] <= y0 + 20 and U[2] >= x1 - 20 and U[3] >= y1 - 20):
+            out.append((max(sx - 6, 0), max(sy - 6, 0), min(sx + sw + 6, w), min(sy + sh + 6, h)))
+        else:
+            out.append((x0, y0, x1, y1))
+    return out
+
+
+def detect_figures(arr, boxes, tables):
+    """Photos, logos, dessins, cachets, signatures : tout ce qui n'est ni du texte lu ni un tableau."""
+    import cv2
+    h, w = arr.shape[:2]
+    blur = cv2.GaussianBlur(arr, (3, 3), 0)
+    gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+    bg = _page_background(gray)
+    mask = (np.abs(gray.astype(np.int16) - bg) > 30)
+    hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
+    mask |= (hsv[:, :, 1] > 55) & (hsv[:, :, 2] > 50)          # zones colorées (logos, tampons)
+    mask = mask.astype(np.uint8) * 255
+    full = mask.copy()                                          # contenu complet (texte inclus), pour les logos
     for b in boxes:
-        cv2.rectangle(bw, (int(b["x0"]) - 4, int(b["y0"]) - 4), (int(b["x1"]) + 4, int(b["y1"]) + 4), 0, -1)
+        cv2.rectangle(mask, (int(b["x0"]) - 4, int(b["y0"]) - 4), (int(b["x1"]) + 4, int(b["y1"]) + 4), 0, -1)
     for t in tables:
         x0, y0, x1, y1 = t["bbox"]
-        cv2.rectangle(bw, (x0 - 4, y0 - 4), (x1 + 4, y1 + 4), 0, -1)
-    k = max(9, w // 90)
-    bw = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
-    bw = cv2.dilate(bw, np.ones((5, 5), np.uint8), iterations=2)
-    cnts, _ = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    figs = []
+        cv2.rectangle(mask, (x0 - 4, y0 - 4), (x1 + 4, y1 + 4), 0, -1)
+    k = max(13, w // 55)
+    closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    closed = cv2.dilate(closed, np.ones((5, 5), np.uint8), iterations=2)
+    cnts, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    rects = []
     for c in cnts:
         x, y, cw, ch = cv2.boundingRect(c)
-        if cw < 0.07 * w or ch < 0.04 * h or cw * ch > 0.7 * w * h:
+        if cw < 0.05 * w or ch < 0.03 * h or cw * ch > 0.75 * w * h:
             continue
-        if max(cw / ch, ch / cw) > 12:             # simple trait / filet
+        if max(cw / ch, ch / cw) > 12:                       # simple trait / filet
             continue
-        figs.append((max(x - 6, 0), max(y - 6, 0), min(x + cw + 6, w), min(y + ch + 6, h)))
-    return figs
+        ink = cv2.countNonZero(mask[y:y + ch, x:x + cw])
+        if ink < 150 or ink / float(cw * ch) < 0.025:            # trop clairsemé : bruit
+            continue
+        rects.append((max(x - 6, 0), max(y - 6, 0), min(x + cw + 6, w), min(y + ch + 6, h)))
+    return _merge_rects(_absorb_logo_text(full, boxes, _merge_rects(rects), w, h))
 
 
 # ------------------------------------------------------------------ structure
@@ -246,9 +311,18 @@ def _analyse_array(arr, dpi, res):
     boxes = ocr_boxes(arr)
     blocks, nt, nf = build_blocks(arr, boxes)
     res.n_tables += nt
-    res.n_figures += nf
     h, w = arr.shape[:2]
     res.pages.append(Page(_jpg(arr), w, h, dpi, boxes, blocks))
+    import cv2
+    n = 0
+    for b in blocks:
+        if b["type"] == "image":
+            x0, y0, x1, y1 = [int(v) for v in b["bbox"]]
+            ok, buf = cv2.imencode(".png", arr[y0:y1, x0:x1])
+            if ok:
+                n += 1
+                res.figures.append({"name": f"page{len(res.pages)}_image{n}.png", "data": buf.tobytes(), "page": len(res.pages)})
+    res.n_figures = len(res.figures)
 
 
 def _plain_text(page):
@@ -267,6 +341,32 @@ def clean_text(text):
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return "\n".join(l.strip() for l in text.split("\n")).strip()
+
+
+def _pdf_embedded_images(pdf, total):
+    """Images réellement incorporées dans un PDF numérique (hors fonds de page entiers et miniatures)."""
+    out, seen = [], set()
+    for i in range(total):
+        page = pdf[i]
+        pr = page.rect
+        for info in page.get_image_info(xrefs=True):
+            xref = info.get("xref")
+            if not xref or xref in seen:
+                continue
+            bb = info["bbox"]
+            if info.get("width", 0) < 48 or info.get("height", 0) < 48:
+                continue
+            if (bb[2] - bb[0]) * (bb[3] - bb[1]) > 0.9 * pr.width * pr.height:
+                continue
+            try:
+                img = pdf.extract_image(xref)
+            except Exception:
+                continue
+            if not img or not img.get("image"):
+                continue
+            seen.add(xref)
+            out.append({"name": f"page{i + 1}_image{len(out) + 1}.{img.get('ext', 'png')}", "data": img["image"], "page": i + 1})
+    return out
 
 
 def analyze(path, progress=None) -> OcrResult:
@@ -291,7 +391,8 @@ def analyze(path, progress=None) -> OcrResult:
         res = OcrResult(str(p), "pdf_text", n_pages=total)
         if all(len(t) >= 30 for t in texts):
             res.text = clean_text("\n\n".join(texts))
-            res.n_figures = sum(len(pdf[i].get_images()) for i in range(total))
+            res.figures = _pdf_embedded_images(pdf, total)
+            res.n_figures = len(res.figures)
             res.n_tables = sum(len(pdf[i].find_tables().tables) for i in range(total)) if hasattr(
                 pdf[0], "find_tables") else 0
             return res

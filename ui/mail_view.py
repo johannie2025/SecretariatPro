@@ -45,8 +45,7 @@ class MailView(ctk.CTkFrame):
 
     # ----------------------------------------------------------------- courrier
     def _build_mail(self, tab):
-        form = ctk.CTkFrame(tab, fg_color="transparent")
-        form.pack(fill="x")
+        form = self.m_form = ctk.CTkFrame(tab, fg_color="transparent")   # affiché seulement après « Nouveau courrier »
         self.m_dir = ctk.CTkSegmentedButton(form, values=["Entrant", "Sortant"], selected_color=c.ACCENT,
                                             selected_hover_color=c.ACCENT_HOVER)
         self.m_dir.set("Entrant")
@@ -64,14 +63,22 @@ class MailView(ctk.CTkFrame):
         self.m_file = c.ghost_btn(form, "Joindre un fichier...", self.pick_attach, width=200)
         self.m_file.grid(row=1, column=3, padx=4)
         c.primary_btn(form, "Enregistrer", self.add_mail, width=120).grid(row=1, column=4, padx=4)
-        bar = ctk.CTkFrame(tab, fg_color="transparent")
+        c.ghost_btn(form, "Annuler", lambda: self.toggle_mail_form(False), width=90).grid(row=1, column=5, padx=4)
+        bar = self.m_bar = ctk.CTkFrame(tab, fg_color="transparent")
         bar.pack(fill="x", pady=(8, 2))
+        c.primary_btn(bar, "+  Nouveau courrier", lambda: self.toggle_mail_form(True), width=200).pack(side="right", padx=(8, 0))
         self.m_search = c.entry(bar, "Rechercher (n°, correspondant, objet...)", 340)
         self.m_search.pack(side="left")
         self.m_search.bind("<KeyRelease>", lambda e: self.load_mails())
         c.ghost_btn(bar, "Exporter en CSV", self.export_csv, width=150).pack(side="right")
         self.m_list = ctk.CTkScrollableFrame(tab, fg_color="transparent")
         self.m_list.pack(fill="both", expand=True)
+
+    def toggle_mail_form(self, show):
+        if show:
+            self.m_form.pack(fill="x", before=self.m_bar)
+        else:
+            self.m_form.pack_forget()
 
     def pick_attach(self):
         f = filedialog.askopenfilename()
@@ -98,6 +105,7 @@ class MailView(ctk.CTkFrame):
             e.delete(0, "end")
         self.attach = ""
         self.m_file.configure(text="Joindre un fichier...")
+        self.toggle_mail_form(False)
         self.load_mails()
         c.info(f"Courrier enregistré sous le n° {ref}.")
 
@@ -142,8 +150,7 @@ class MailView(ctk.CTkFrame):
 
     # ------------------------------------------------------------------- tâches
     def _build_tasks(self, tab):
-        form = ctk.CTkFrame(tab, fg_color="transparent")
-        form.pack(fill="x")
+        form = self.t_form = ctk.CTkFrame(tab, fg_color="transparent")   # affiché seulement après « Nouvelle tâche »
         self.t_title = c.entry(form, "Tâche à faire (ex. Appeler M. Obiang)", 380)
         self.t_title.grid(row=0, column=0, padx=4, pady=4)
         self.t_due = c.entry(form, "Échéance JJ/MM/AAAA", 160)
@@ -152,11 +159,21 @@ class MailView(ctk.CTkFrame):
         self.t_client.set(NONE)
         self.t_client.grid(row=0, column=2, padx=4)
         c.primary_btn(form, "Ajouter", self.add_task, width=110).grid(row=0, column=3, padx=4)
-        self.t_done = ctk.CTkSwitch(tab, text="Afficher les tâches terminées", command=self.load_tasks,
+        c.ghost_btn(form, "Annuler", lambda: self.toggle_task_form(False), width=90).grid(row=0, column=4, padx=4)
+        tbar = self.t_bar = ctk.CTkFrame(tab, fg_color="transparent")
+        tbar.pack(fill="x", pady=6)
+        c.primary_btn(tbar, "+  Nouvelle tâche", lambda: self.toggle_task_form(True), width=190).pack(side="right")
+        self.t_done = ctk.CTkSwitch(tbar, text="Afficher les tâches terminées", command=self.load_tasks,
                                     progress_color=c.ACCENT)
-        self.t_done.pack(anchor="w", pady=6)
+        self.t_done.pack(side="left")
         self.t_list = ctk.CTkScrollableFrame(tab, fg_color="transparent")
         self.t_list.pack(fill="both", expand=True)
+
+    def toggle_task_form(self, show):
+        if show:
+            self.t_form.pack(fill="x", before=self.t_bar)
+        else:
+            self.t_form.pack_forget()
 
     def add_task(self):
         try:
@@ -165,6 +182,7 @@ class MailView(ctk.CTkFrame):
             return c.error(str(e))
         self.t_title.delete(0, "end")
         self.t_due.delete(0, "end")
+        self.toggle_task_form(False)
         self.load_tasks()
         self.app.pages["home"].refresh()
 
